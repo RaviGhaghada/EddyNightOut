@@ -1,13 +1,17 @@
+#! /usr/bin/python3
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
+import operator
 import time
 import threading
 import sys
 import os
+from gui import GUI
 
 # twilio phone-numbers:update "+441732252343" --sms-url="http://localhost:5000/sms"
 # use code above to reset tunnel
 num_reply = dict()
+g = GUI()
 
 app = Flask(__name__)
 
@@ -22,40 +26,50 @@ def sms_ahoy_reply():
 
 
 def run_vote(story, index):
-    currnode = story[index]
 
+    g.addImage(index)
+
+    currnode = story[index]
+    
     # each line in currnode's text description, a list of strings
     for line in currnode.text:
-        print(line)
+        g.addtext(line)
 
-    if len(currnode.next_nodes)==1:
-        time.sleep(5)
-        return currnode.next_nodes[0]
+    if (currnode.next_nodes) is None:
+        return None
+    if len(currnode.next_nodes) == 1:
+        return currnode.next_nodes
+    
+    
+
     options = dict()
-    print("Options are: ")
+    g.addtext("Options are: ")
     # all the options for my current node
     for optionIndex in currnode.next_nodes:
-        print(optionIndex, " ", story[optionIndex].label)
+        g.addtext("{} {}".format(optionIndex, story[optionIndex].label))
         options[optionIndex] = 0
 
-    time.sleep(15)
+    g.refresh()
 
+    time.sleep(15)
+    #num_reply['+447415961525'] = input("Vote: ")
+    
     for vote in num_reply.values():
         if vote in options:
-            options[vote] = options[vote] + 1
+            options[vote] = options[vote]+1
 
     num_reply.clear()
 
     total = sum(options.values())
     if total == 0:
-        print("Nobody voted.")
+        g.addtext("Nobody voted.")
         return index
 
     # at this point, total cannot be zero
-    print(total, " people voted.")
+    g.addtext("{} people voted.".format(total))
 
     for key in options:
-        print("%0.2f" % (options[key] / total * 100), "%% voted OPTION", key, ".")
+        g.addtext("{}% voted OPTION {}".format("%0.2f" % (options[key] / total * 100), key))
 
     return max(options, key=lambda key: options[key])
 
@@ -133,11 +147,13 @@ class Game(threading.Thread):
         story = create_tree("Storyline")
         curr = '0'
 
-        while story[curr].next_nodes is not None:
+        while story[curr].node is not None:
+            g.clear()
             curr = run_vote(story, curr)
-
+            g.refresh()
+            time.sleep(6)
 
 if __name__ == "__main__":
-    g = Game()
-    g.start()
-    app.run(debug=True)
+    gem = Game()
+    gem.start()
+    app.run()
